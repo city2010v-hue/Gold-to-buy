@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Gold Web Dashboard — Alerts</title>
+  <style>
+    :root{--bg:#0b0f19;--card:#111827;--fg:#e5e7eb;--muted:#9ca3af;--accent:#60a5fa;--border:#1f2937}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    h1{font-size:20px;margin:0}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
+    .title{font-size:14px;color:var(--muted);margin:0 0 8px 0}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    label{font-size:12px;color:var(--muted)}
+    input, select{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1629;color:var(--fg)}
+    .btn{appearance:none;border:1px solid var(--border);background:#0f1629;color:var(--fg);padding:10px 12px;border-radius:10px;cursor:pointer}
+    .btn:hover{border-color:#334155}
+    .log{max-height:200px;overflow:auto;background:#0f1629;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:#cbd5e1}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--border);font-size:11px;color:var(--muted)}
+    .ok{color:#22c55e}
+    .warn{color:#f59e0b}
+    .err{color:#ef4444}
+    audio{display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🏆 Gold Web Dashboard — Alerts</h1>
+      <div>
+        <span class="badge">Static</span>
+        <span class="badge">Client-side</span>
+        <span class="badge">iPad Ready</span>
+      </div>
+    </header>
+
+    <section class="card">
+      <p class="title">สัญญาณอัตโนมัติ (ทดลอง) — ต้องมีแหล่งราคาแบบ JSON</p>
+      <div class="row">
+        <div style="flex:2;min-width:280px">
+          <label>URL ข้อมูลราคา (JSON) — ต้องคืน {"price":number} หรือ {"close":number}</label>
+          <input id="priceUrl" placeholder="เช่น https://example.com/xauusd.json" />
+        </div>
+        <div style="flex:1;min-width:160px">
+          <label>ความถี่ดึงข้อมูล (วินาที)</label>
+          <select id="freq">
+            <option value="15">15</option>
+            <option value="30" selected>30</option>
+            <option value="60">60</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <button class="btn" onclick="start()">Start</button>
+          <button class="btn" onclick="stop()">Stop</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1;min-width:140px">
+          <label>Breakout Window (bars)</label>
+          <select id="win">
+            <option>20</option><option selected>50</option><option>100</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label>EMA Fast</label>
+          <input id="emaFast" type="number" value="50" />
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label>EMA Slow</label>
+          <input id="emaSlow" type="number" value="200" />
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label>Minimum distance above/below breakout ($)</label>
+          <input id="th" type="number" value="1.0" step="0.1" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1;min-width:240px">
+          <label>Telegram Bot Token (ไม่บังคับ)</label>
+          <input id="tgToken" placeholder="123456:ABC-DEF..." />
+        </div>
+        <div style="flex:1;min-width:240px">
+          <label>Telegram Chat ID</label>
+          <input id="tgChat" placeholder="เช่น 123456789" />
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn" onclick="testTelegram()">ทดสอบส่ง Telegram</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1;min-width:200px">
+          <label>Status</label>
+          <div id="status" class="badge">idle</div>
+        </div>
+        <div style="flex:2;min-width:260px">
+          <label>สรุปล่าสุด</label>
+          <div id="summary" class="badge"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div style="flex:1;min-width:200px">
+          <label>Log</label>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="title">หลักเกณฑ์สัญญาณ (ไทย)</p>
+      <ul>
+        <li>**ควรซื้อ** เมื่อ: ราคา &gt; สูงสุด {win} แท่งล่าสุด + threshold และ EMA_fast &gt; EMA_slow</li>
+        <li>**ควรขาย** เมื่อ: ราคา &lt; ต่ำสุด {win} แท่งล่าสุด − threshold และ EMA_fast &lt; EMA_slow</li>
+        <li>สคริปต์จะคำนวณ EMA จากราคาปิดที่ดึงมาเป็นระยะๆ (รักษา history ในหน้านี้)</li>
+        <li>การแจ้งเตือน:
+          <ul>
+            <li>เด้ง Notification บนเบราว์เซอร์ (ต้องอนุญาต)</li>
+            <li>เล่นเสียงสั้น</li>
+            <li>ส่ง Telegram (ถ้ากรอก token + chat_id)</li>
+          </ul>
+        </li>
+        <li><span class="warn">ข้อจำกัด:</span> หน้าเว็บต้อง <b>เปิดค้างไว้</b> จึงจะทำงาน (เพราะเป็น Static ไม่มีเซิร์ฟเวอร์)</li>
+      </ul>
+    </section>
+
+    <audio id="beep">
+      <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAAEsAAACAAABAAAAAAA=" type="audio/wav">
+    </audio>
+  </div>
+
+  <script>
+    // --- Utilities ---
+    const $ = sel => document.querySelector(sel);
+    function log(msg, cls){ const el = $('#log'); const p = document.createElement('div'); p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`; if(cls) p.className=cls; el.prepend(p); }
+    function setStatus(txt){ $('#status').textContent = txt; }
+    function setSummary(txt){ $('#summary').textContent = txt; }
+
+    // Notification
+    async function ensureNotifyPermission(){
+      try{
+        if(!('Notification' in window)) return false;
+        if(Notification.permission === 'granted') return true;
+        if(Notification.permission !== 'denied'){
+          const p = await Notification.requestPermission();
+          return p === 'granted';
+        }
+      }catch(e){}
+      return false;
+    }
+    function notify(title, body){
+      try{
+        if(('Notification' in window) && Notification.permission==='granted'){
+          new Notification(title, { body });
+        }
+        const beep = document.getElementById('beep');
+        if(beep) { beep.currentTime = 0; beep.play().catch(()=>{}); }
+      }catch(e){}
+    }
+
+    // Telegram
+    async function sendTelegram(text){
+      const token = $('#tgToken').value.trim();
+      const chat = $('#tgChat').value.trim();
+      if(!token || !chat) return;
+      try{
+        const url = `https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ chat_id: chat, text })
+        });
+        if(!res.ok) throw new Error('telegram error');
+      }catch(e){
+        log('ส่ง Telegram ไม่สำเร็จ', 'err');
+      }
+    }
+    async function testTelegram(){
+      await sendTelegram('ทดสอบแจ้งเตือนจาก Gold Web Dashboard — Alerts');
+      log('ลองส่ง Telegram แล้ว ถ้าไม่ขึ้นให้ตรวจ token/chat_id', 'ok');
+    }
+
+    // EMA
+    function ema(prevEma, price, period){
+      const k = 2/(period+1);
+      return prevEma==null ? price : (price*k + prevEma*(1-k));
+    }
+
+    // State
+    const state = {
+      timer: null,
+      closes: [],
+      emaFast: null,
+      emaSlow: null,
+      lastSignal: null
+    };
+
+    function getCfg(){
+      return {
+        url: $('#priceUrl').value.trim(),
+        freq: parseInt($('#freq').value,10) * 1000,
+        win: parseInt($('#win').value,10),
+        emaFastP: parseInt($('#emaFast').value,10),
+        emaSlowP: parseInt($('#emaSlow').value,10),
+        th: parseFloat($('#th').value)
+      };
+    }
+
+    async function fetchPrice(url){
+      const res = await fetch(url, { cache: 'no-store' });
+      if(!res.ok) throw new Error('bad status');
+      const j = await res.json();
+      let p = j.price ?? j.close ?? null;
+      if(typeof p !== 'number') throw new Error('invalid json');
+      return p;
+    }
+
+    function highest(arr, n){ const w = arr.slice(-n); return Math.max.apply(null, w); }
+    function lowest(arr, n){ const w = arr.slice(-n); return Math.min.apply(null, w); }
+
+    function evalSignal(cfg, price){
+      if(state.closes.length < Math.max(cfg.win, cfg.emaSlowP)) return null;
+      const hi = highest(state.closes, cfg.win);
+      const lo = lowest(state.closes, cfg.win);
+      const bull = price > (hi + cfg.th) && state.emaFast > state.emaSlow;
+      const bear = price < (lo - cfg.th) && state.emaFast < state.emaSlow;
+      if(bull) return {type:'BUY', reason:`ทะลุ High ${cfg.win} แท่ง + EMA${cfg.emaFastP}>EMA${cfg.emaSlowP}`};
+      if(bear) return {type:'SELL', reason:`หลุด Low ${cfg.win} แท่ง + EMA${cfg.emaFastP}<EMA${cfg.emaSlowP}`};
+      return null;
+    }
+
+    async function tick(){
+      const cfg = getCfg();
+      try{
+        const p = await fetchPrice(cfg.url);
+        // update state
+        state.closes.push(p);
+        if(state.closes.length > 2000) state.closes.shift();
+        state.emaFast = ema(state.emaFast, p, cfg.emaFastP);
+        state.emaSlow = ema(state.emaSlow, p, cfg.emaSlowP);
+
+        const sig = evalSignal(cfg, p);
+        setSummary(`ราคา: ${p.toFixed(2)} | EMA${cfg.emaFastP.toString()}: ${state.emaFast?.toFixed(2)} | EMA${cfg.emaSlowP.toString()}: ${state.emaSlow?.toFixed(2)}`);
+        if(sig && sig.type !== state.lastSignal){
+          const msg = `${sig.type === 'BUY' ? 'ควรซื้อ' : 'ควรขาย'} | ${sig.reason} | ราคา ${p.toFixed(2)}`;
+          log(msg, sig.type==='BUY' ? 'ok' : 'err');
+          notify(sig.type==='BUY' ? 'สัญญาณ: ควรซื้อ' : 'สัญญาณ: ควรขาย', msg);
+          sendTelegram(msg);
+          state.lastSignal = sig.type;
+        }
+      }catch(e){
+        log('ดึงราคาล้มเหลว/ฟอร์แมตผิด', 'err');
+      }
+    }
+
+    async function start(){
+      const cfg = getCfg();
+      if(!cfg.url){ alert('กรุณาใส่ URL แหล่งราคา JSON'); return; }
+      await ensureNotifyPermission();
+      setStatus('running');
+      stop();
+      state.closes=[]; state.emaFast=null; state.emaSlow=null; state.lastSignal=null;
+      tick();
+      state.timer = setInterval(tick, cfg.freq);
+      log('เริ่มติดตามราคา...', 'ok');
+    }
+    function stop(){
+      if(state.timer){ clearInterval(state.timer); state.timer=null; setStatus('idle'); log('หยุดติดตาม', 'warn'); }
+    }
+  </script>
+</body>
+</html>
