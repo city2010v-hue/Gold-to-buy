@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Gold Web Dashboard</title>
+  <meta name="description" content="Gold trading dashboard: XAUUSD chart, DXY, economic calendar, position sizing, R:R planner." />
+  <style>
+    :root{--bg:#0b0f19;--card:#111827;--fg:#e5e7eb;--muted:#9ca3af;--accent:#60a5fa;--border:#1f2937}
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+    h1{font-size:20px;margin:0}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:900px){.grid{grid-template-columns:2fr 1fr}}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+    .title{font-size:14px;color:var(--muted);margin:0 0 8px 0}
+    .tv{height:420px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    label{font-size:12px;color:var(--muted)}
+    input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0f1629;color:var(--fg)}
+    .btn{appearance:none;border:1px solid var(--border);background:#0f1629;color:var(--fg);padding:10px 12px;border-radius:10px;cursor:pointer}
+    .btn:hover{border-color:#334155}
+    .kpi{display:flex;gap:12px;flex-wrap:wrap}
+    .pill{padding:8px 10px;border-radius:999px;background:#0f1629;border:1px solid var(--border);font-size:12px}
+    footer{margin:24px 0;color:var(--muted);font-size:12px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🏆 Gold Web Dashboard</h1>
+      <div class="kpi">
+        <span class="pill">Trend Following</span>
+        <span class="pill">Breakout</span>
+        <span class="pill">Risk First</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <p class="title">XAUUSD (Gold) — Interactive Chart</p>
+        <!-- TradingView Widget BEGIN -->
+        <div class="tv" id="tv-gold"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+        <script>
+          new TradingView.widget({
+            "container_id": "tv-gold",
+            "symbol": "OANDA:XAUUSD",
+            "interval": "60",
+            "locale": "en",
+            "autosize": true,
+            "theme": "dark",
+            "style": "1",
+            "withdateranges": true,
+            "allow_symbol_change": true,
+            "timezone": "Etc/UTC",
+            "hide_side_toolbar": false,
+            "hide_volume": false,
+            "studies": ["MASimple@tv-basicstudies","MASimple@tv-basicstudies"]
+          });
+        </script>
+        <!-- TradingView Widget END -->
+      </section>
+
+      <aside class="card">
+        <p class="title">DXY (US Dollar Index) & Economic Calendar</p>
+        <div style="height:200px" id="tv-dxy"></div>
+        <script>
+          new TradingView.widget({
+            "container_id": "tv-dxy",
+            "symbol": "TVC:DXY",
+            "interval": "60",
+            "locale": "en",
+            "autosize": true,
+            "theme": "dark",
+            "style": "1",
+            "timezone": "Etc/UTC"
+          });
+        </script>
+
+        <div style="height:200px;margin-top:8px" id="tv-cal"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
+        {
+          "width": "100%",
+          "height": "100%",
+          "locale": "en",
+          "importanceFilter": "-1,0,1",
+          "isTransparent": false,
+          "colorTheme": "dark"
+        }
+        </script>
+      </aside>
+    </div>
+
+    <section class="card">
+      <p class="title">Position Sizing & R:R Planner</p>
+      <div class="row">
+        <div style="flex:1;min-width:220px">
+          <label>Account Equity ($)</label>
+          <input id="equity" type="number" step="100" value="100000" />
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label>Risk per trade (%)</label>
+          <input id="riskpct" type="number" step="0.1" value="1.0" />
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label>Stop distance ($/oz)</label>
+          <input id="stopdist" type="number" step="0.1" value="20" />
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label>Reward : Risk</label>
+          <input id="rr" type="number" step="0.5" value="3.0" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" onclick="calc()">Calculate</button>
+        <button class="btn" onclick="resetInputs()">Reset</button>
+      </div>
+      <div id="out" style="margin-top:8px;font-size:14px"></div>
+    </section>
+
+    <footer>Educational use only. No financial advice.</footer>
+  </div>
+
+  <script>
+    function calc(){
+      const equity = parseFloat(document.getElementById('equity').value || '0');
+      const riskpct = parseFloat(document.getElementById('riskpct').value || '0');
+      const stopdist = parseFloat(document.getElementById('stopdist').value || '0');
+      const rr = parseFloat(document.getElementById('rr').value || '0');
+      const riskAmt = equity * (riskpct/100);
+      const units = stopdist>0 ? (riskAmt/stopdist) : 0;
+      const text = [
+        `Risk Amount: $${riskAmt.toFixed(2)}`,
+        `Position Size: ${units.toFixed(2)} oz`,
+        `Target distance ≈ $${(rr*stopdist).toFixed(2)} from entry for R:R = ${rr}`
+      ].join('<br/>');
+      document.getElementById('out').innerHTML = text;
+      const save = {equity,riskpct,stopdist,rr};
+      localStorage.setItem('goldSizer', JSON.stringify(save));
+    }
+    function resetInputs(){
+      document.getElementById('equity').value = 100000;
+      document.getElementById('riskpct').value = 1.0;
+      document.getElementById('stopdist').value = 20;
+      document.getElementById('rr').value = 3.0;
+      document.getElementById('out').innerHTML = '';
+      localStorage.removeItem('goldSizer');
+    }
+    (function(){
+      const saved = localStorage.getItem('goldSizer');
+      if(saved){
+        try{
+          const s = JSON.parse(saved);
+          document.getElementById('equity').value = s.equity ?? 100000;
+          document.getElementById('riskpct').value = s.riskpct ?? 1.0;
+          document.getElementById('stopdist').value = s.stopdist ?? 20;
+          document.getElementById('rr').value = s.rr ?? 3.0;
+        }catch(e){}
+      }
+    })();
+  </script>
+</body>
+</html>
